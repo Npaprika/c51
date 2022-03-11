@@ -1,0 +1,263 @@
+C51 COMPILER V8.08   MAIN                                                                  03/08/2022 21:23:36 PAGE 1   
+
+
+C51 COMPILER V8.08, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          //机器人智能循迹
+   2          //机器人从启动区出发
+   3          //沿黑色引导线A运行1圈
+   4          //数码管显示检测到的标志线1-8
+   5          #include <reg51.h>
+   6          //位定义
+   7          sbit P1_2=P1^2;
+   8          sbit P1_3=P1^3;
+   9          sbit P1_4=P1^4;
+  10          sbit P1_5=P1^5;
+  11          sbit P1_6=P1^6;
+  12          sbit P1_7=P1^7;
+  13          sbit P3_3=P3^3;
+  14          sbit P3_4=P3^4;
+  15          sbit P3_7=P3^7;
+  16          //宏定义
+  17          #define uchar unsigned char
+  18          #define uint  unsigned int
+  19          //左右红外传感器引脚
+  20          #define Left_IRSenor_Track   P3_4  
+  21          #define Right_IRSenor_Track  P3_3  
+  22          //速度值和左右电机PWM输入引脚  
+  23          #define SPEED               10   
+  24          #define Left_Motor_PWM     P1_4  
+  25          #define Right_Motor_PWM    P1_5  
+  26          //左右车轮运动方向      
+  27          #define Left_Motor_Go      {P1_2=0,P1_3=1;} 
+  28          #define Left_Motor_Back    {P1_2=1,P1_3=0;} 
+  29          #define Left_Motor_Stop    {P1_2=0,P1_3=0;}                      
+  30          #define Right_Motor_Go     {P1_6=1,P1_7=0;}     
+  31          #define Right_Motor_Back   {P1_6=0,P1_7=1;}     
+  32          #define Right_Motor_Stop   {P1_6=0,P1_7=0;}     
+  33          //左右电机PWM值调节变量
+  34          unsigned char Left_PWM_Value=0;
+  35          unsigned char Left_Drive_Value=0;
+  36          unsigned char Right_PWM_Value =0;
+  37          unsigned char Right_Drive_Value=0;
+  38          bit Left_moto_stop =1;
+  39          bit Right_moto_stop=1;
+  40          //数码管锁存器选择      
+  41          sbit POSSEL = P2^7;
+  42          sbit SEGSEL = P2^6;
+  43          //数码管位选码表、段码表
+  44          uchar POSCode[]={0xff,0xfe,0xfd,0xfb,0xf7,0xef,0xdf,0xbf,0x7f};
+  45          uchar code SEGCode[]={0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,
+  46          0x7f,0x6f,0x77,0x7c,0x39,0x5e,0x79,0x71,0x00};
+  47          //机器人智能循迹标志
+  48          unsigned char Line=0; 
+  49          unsigned char Flag;  
+  50          //毫秒延时
+  51          void delay_ms(unsigned int n)
+  52          {
+  53   1          unsigned int i,j;
+  54   1                 for(i=n; i>0; i--)
+  55   1                    for(j=114; j>0; j--);
+C51 COMPILER V8.08   MAIN                                                                  03/08/2022 21:23:36 PAGE 2   
+
+  56   1      }
+  57          ///数码管显示
+  58          void LEDTube_Show(unsigned char i,unsigned char j)
+  59          {
+  60   1              P0=POSCode[i];   
+  61   1              POSSEL=1;         
+  62   1              POSSEL=0;                                                                                                                               
+  63   1              P0=SEGCode[j];   
+  64   1              SEGSEL=1;        
+  65   1              SEGSEL=0;                       
+  66   1      }
+  67          //机器人向前行驶
+  68          void GoForward(void)
+  69          {
+  70   1          Left_Drive_Value=SPEED;      
+  71   1              Right_Drive_Value=SPEED; 
+  72   1              Left_Motor_Go;  
+  73   1              Right_Motor_Go; 
+  74   1      }
+  75          //机器人向左转
+  76          void GoLeft(void)
+  77          {                        
+  78   1          Left_Drive_Value=SPEED;   
+  79   1              Right_Drive_Value=SPEED; 
+  80   1              Right_Motor_Go;  
+  81   1          Left_Motor_Back; 
+  82   1      }
+  83          //机器人向右转
+  84          void GoRight(void)
+  85          { 
+  86   1          Left_Drive_Value=SPEED;   
+  87   1              Right_Drive_Value=SPEED;  
+  88   1          Left_Motor_Go;    
+  89   1              Right_Motor_Back; 
+  90   1      }
+  91          //机器人停止运行
+  92          void Stop(void)     
+  93          {        
+  94   1          Left_Motor_Stop;    
+  95   1              Right_Motor_Stop;   
+  96   1      }
+  97          //机器人180度调头
+  98          void GoAround(void)
+  99          {
+ 100   1          Left_Drive_Value=11;        
+ 101   1              Right_Drive_Value=11; 
+ 102   1              Left_Motor_Go;        
+ 103   1              Right_Motor_Back;          
+ 104   1              delay_ms(650);             
+ 105   1              Stop();                   
+ 106   1      }
+ 107          //机器人后退
+ 108          void GoBack(void)
+ 109          {        
+ 110   1          Left_Drive_Value=SPEED;   
+ 111   1              Right_Drive_Value=SPEED;  
+ 112   1              Left_Motor_Back;  
+ 113   1              Right_Motor_Back;   
+ 114   1      }
+ 115          //调节左电机转速函数
+ 116          void Left_Motor_PWM_Adjust(void)
+ 117          {  
+C51 COMPILER V8.08   MAIN                                                                  03/08/2022 21:23:36 PAGE 3   
+
+ 118   1         if(Left_moto_stop)
+ 119   1              {
+ 120   2                      if(Left_PWM_Value<=Left_Drive_Value)
+ 121   2                      {
+ 122   3                               Left_Motor_PWM=1;
+ 123   3                              }
+ 124   2                      else 
+ 125   2                      {
+ 126   3                               Left_Motor_PWM=0;
+ 127   3                              }       
+ 128   2                      if(Left_PWM_Value>=20)
+ 129   2                      Left_PWM_Value=0;
+ 130   2              }
+ 131   1         else    
+ 132   1          {
+ 133   2              Left_Motor_PWM=0;
+ 134   2              }
+ 135   1      }
+ 136          //调节右电机转速函数
+ 137          void Right_Motor_PWM_Adjust(void)
+ 138          { 
+ 139   1        if(Right_moto_stop)
+ 140   1         { 
+ 141   2              if(Right_PWM_Value<=Right_Drive_Value)
+ 142   2                      {
+ 143   3                              Right_Motor_PWM=1;
+ 144   3                              }
+ 145   2                      else 
+ 146   2                      {
+ 147   3                                      Right_Motor_PWM=0;
+ 148   3                              }
+ 149   2                      if(Right_PWM_Value>=20)
+ 150   2                              Right_PWM_Value=0;
+ 151   2              }
+ 152   1         else    
+ 153   1          {
+ 154   2                       Right_Motor_PWM=0;
+ 155   2          }   
+ 156   1      }
+ 157          //机器人采集红外循迹传感器数据控制电机智能循迹运行
+ 158          void Track(void)
+ 159          {
+ 160   1          if(Left_IRSenor_Track==0&&Right_IRSenor_Track==0)
+ 161   1          {
+ 162   2              GoForward();
+ 163   2              Flag=1;         
+ 164   2          }              
+ 165   1          if(Left_IRSenor_Track==0&&Right_IRSenor_Track==1)    
+ 166   1          {                                    
+ 167   2              GoRight();
+ 168   2          }
+ 169   1          if(Left_IRSenor_Track==1&&Right_IRSenor_Track==0) 
+ 170   1          {                                       
+ 171   2              GoLeft();
+ 172   2          }
+ 173   1          if(Left_IRSenor_Track==1&&Right_IRSenor_Track==1)
+ 174   1          {
+ 175   2              GoForward();            
+ 176   2              if(Flag!=0)
+ 177   2                      {
+ 178   3                              Line++;  
+ 179   3                      }
+C51 COMPILER V8.08   MAIN                                                                  03/08/2022 21:23:36 PAGE 4   
+
+ 180   2                      Flag=0;   
+ 181   2          }
+ 182   1      }
+ 183          //初始化定时器T0方式1
+ 184          void TIMER0_Init(void)
+ 185          {
+ 186   1              TMOD=0x01;       
+ 187   1              TH0=0xFC; 
+ 188   1          TL0=0x18;           
+ 189   1          TR0=1;   
+ 190   1          ET0=1;        
+ 191   1              EA=1;      
+ 192   1      }
+ 193          //机器人沿引导环线智能循迹，数码管实时显示标志线根数
+ 194          void main(void)
+ 195          {
+ 196   1              unsigned char i=0; 
+ 197   1          P1=0xF0;   //关电机
+ 198   1              //机器人按键启动                
+ 199   1              while(1)   
+ 200   1              {
+ 201   2                      if(P3_7!=1)
+ 202   2                      {
+ 203   3                              delay_ms(50);
+ 204   3                              if(P3_7!=1) break;
+ 205   3                      }
+ 206   2              }
+ 207   1              delay_ms(50);   
+ 208   1              TIMER0_Init();   
+ 209   1              while(1)
+ 210   1              { 
+ 211   2                      if(Line<8)     
+ 212   2                      {
+ 213   3                              Track();         
+ 214   3                              if(Line)
+ 215   3                                      LEDTube_Show(6,Line);
+ 216   3                      }
+ 217   2                      else
+ 218   2                      {
+ 219   3                              Stop(); 
+ 220   3                      }
+ 221   2              }
+ 222   1      }
+ 223          //定时器0中断函数完成PWM对电机速度调节
+ 224          void TIMER0_IRQHandler(void) interrupt 1 using 2
+ 225          {
+ 226   1           TH0=0xFC;    
+ 227   1               TL0=0x18;
+ 228   1               Left_PWM_Value++; 
+ 229   1               Right_PWM_Value++;
+ 230   1               Left_Motor_PWM_Adjust();
+ 231   1               Right_Motor_PWM_Adjust();
+ 232   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    352    ----
+   CONSTANT SIZE    =     17    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     15       1
+   IDATA SIZE       =   ----    ----
+C51 COMPILER V8.08   MAIN                                                                  03/08/2022 21:23:36 PAGE 5   
+
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
